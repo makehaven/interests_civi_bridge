@@ -1,0 +1,12 @@
+services:
+  logger.channel.interests_civi_bridge:
+    parent: logger.channel_base
+    arguments: ['interests_civi_bridge']
+  interests_civi_bridge.sync_manager:
+    class: Drupal\interests_civi_bridge\InterestsSyncManager
+    arguments:
+      - '@config.factory'
+      - '@entity_type.manager'
+      - '@entity_field.manager'
+      - '@civicrm'
+      - '@logger.channel.interests_civi_bridge'

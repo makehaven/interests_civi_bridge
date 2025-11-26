@@ -1,0 +1,6 @@
+{
+    "name": "makehaven/interests_civi_bridge",
+    "type": "drupal-custom-module",
+    "description": "Keeps Drupal member interest taxonomy selections in sync with a CiviCRM custom field.",
+    "license": "GPL-2.0-or-later"
+}

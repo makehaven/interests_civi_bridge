@@ -1,0 +1,7 @@
+interests_civi_bridge.settings:
+  path: '/admin/config/people/interests-civi-bridge'
+  defaults:
+    _form: '\Drupal\interests_civi_bridge\Form\InterestsCiviBridgeSettingsForm'
+    _title: 'Interests <-> CiviCRM sync'
+  requirements:
+    _permission: 'administer site configuration'

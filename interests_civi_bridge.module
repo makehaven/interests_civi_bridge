@@ -1,0 +1,35 @@
+<?php
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\profile\Entity\ProfileInterface;
+
+/**
+ * Implements hook_entity_insert().
+ */
+function interests_civi_bridge_entity_insert(EntityInterface $entity): void {
+  if ($entity instanceof ProfileInterface) {
+    \Drupal::service('interests_civi_bridge.sync_manager')->handleProfileSave($entity, TRUE);
+  }
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function interests_civi_bridge_entity_update(EntityInterface $entity): void {
+  if ($entity instanceof ProfileInterface) {
+    \Drupal::service('interests_civi_bridge.sync_manager')->handleProfileSave($entity, FALSE);
+  }
+}
+
+/**
+ * Implements hook_civicrm_post().
+ */
+function interests_civi_bridge_civicrm_post($op, $objectName, $objectId, &$objectRef): void {
+  if (!in_array($op, ['create', 'edit'], TRUE)) {
+    return;
+  }
+  if ($objectName !== 'Contact' || !$objectId) {
+    return;
+  }
+  \Drupal::service('interests_civi_bridge.sync_manager')->handleCivicrmPost((int) $objectId);
+}

@@ -1,0 +1,5 @@
+profile_bundle: main
+profile_field: field_member_areas_interest
+civicrm_custom_field: ''
+enable_push: true
+enable_pull: true

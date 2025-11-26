@@ -1,0 +1,13 @@
+# Ignore dependencies managed by Composer
+vendor/
+node_modules/
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db

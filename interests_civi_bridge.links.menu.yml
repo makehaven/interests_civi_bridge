@@ -1,0 +1,6 @@
+interests_civi_bridge.settings:
+  title: 'Interests <-> CiviCRM sync'
+  description: 'Configure syncing between Drupal interests taxonomy fields and a CiviCRM custom field.'
+  parent: entity.user.collection
+  route_name: interests_civi_bridge.settings
+  weight: 110
