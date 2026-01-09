@@ -2,8 +2,9 @@ name: 'Interests CiviCRM Bridge'
 type: module
 description: 'Keeps Drupal member interest taxonomy selections in sync with a CiviCRM custom field.'
 core_version_requirement: ^10 || ^11
-package: MakeHaven
+package: Makerspace
 dependencies:
   - drupal:civicrm
   - drupal:profile
   - drupal:taxonomy
+configure: interests_civi_bridge.settings
