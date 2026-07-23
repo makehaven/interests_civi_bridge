@@ -1,0 +1,4 @@
+interest_picker:
+  css:
+    theme:
+      css/interest-picker.css: {}

@@ -1,0 +1,68 @@
+/**
+ * Areas-of-Interest picker on the onboarding thank-you page. Renders the
+ * checkboxes as selectable "chips" (injected by interests_civi_bridge_node_view).
+ */
+.mh-interest-picker-wrap {
+  max-width: 760px;
+  margin: 0 auto 2.5rem;
+  padding: 1.5rem 1.25rem;
+  background: rgba(139, 25, 25, 0.03);
+  border: 1px solid #e7e2da;
+  border-radius: 12px;
+}
+.mh-interest-picker-heading {
+  text-align: center;
+  margin: 0 0 0.25rem;
+}
+.mh-interest-picker__intro {
+  text-align: center;
+  color: #6f675f;
+  max-width: 60ch;
+  margin: 0 auto 1.25rem;
+}
+.mh-interest-picker .fieldset__wrapper,
+.mh-interest-picker .form-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+}
+.mh-interest-picker .form-checkboxes .form-item {
+  margin: 0;
+  position: relative;
+}
+/* Hide the native checkbox; the label becomes the chip. */
+.mh-interest-picker .form-checkboxes .form-item input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.mh-interest-picker .form-checkboxes .form-item label {
+  display: inline-block;
+  padding: 0.6rem 1.15rem;
+  border: 2px solid #d9d3ca;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1.05rem;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+  margin: 0;
+}
+.mh-interest-picker .form-checkboxes .form-item label:hover {
+  border-color: #8b1919;
+}
+.mh-interest-picker .form-checkboxes .form-item input[type="checkbox"]:checked + label,
+.mh-interest-picker .form-checkboxes .form-item:has(input:checked) label {
+  border-color: #8b1919;
+  background: rgba(139, 25, 25, 0.10);
+  font-weight: 600;
+}
+/* Keyboard focus visibility since the input is visually hidden. */
+.mh-interest-picker .form-checkboxes .form-item input[type="checkbox"]:focus-visible + label {
+  outline: 2px solid #8b1919;
+  outline-offset: 2px;
+}
+.mh-interest-picker .form-actions {
+  text-align: center;
+  margin-top: 1.4rem;
+}

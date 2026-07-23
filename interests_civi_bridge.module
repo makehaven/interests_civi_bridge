@@ -1,7 +1,44 @@
 <?php
 
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\node\NodeInterface;
 use Drupal\profile\Entity\ProfileInterface;
+
+/**
+ * Node id of the onboarding "thank you / getting started" page
+ * (/thank-you-joining-makehaven). Shared lineage keeps this stable across envs.
+ */
+const INTERESTS_CIVI_BRIDGE_THANKYOU_NID = 614;
+
+/**
+ * Implements hook_node_view().
+ *
+ * Injects the Areas-of-Interest picker at the top of the onboarding thank-you
+ * page for logged-in members, so we capture interests at the end of signup
+ * (drives Slack routing + the weekly digest) without lengthening the join form.
+ * Rendered in the normal page pipeline (not via a body token) so the form
+ * submits and saves properly.
+ */
+function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $display, $view_mode): void {
+  if ((int) $node->id() !== INTERESTS_CIVI_BRIDGE_THANKYOU_NID || $view_mode !== 'full') {
+    return;
+  }
+  if (!\Drupal::currentUser()->isAuthenticated()) {
+    return;
+  }
+  $build['interests_picker'] = [
+    '#type' => 'container',
+    '#weight' => -50,
+    '#attributes' => ['class' => ['mh-interest-picker-wrap']],
+    '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
+    'heading' => [
+      '#markup' => '<h3 class="mh-interest-picker-heading">' . t('Tell us what you want to make') . '</h3>',
+    ],
+    'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
+  ];
+  // The picker reflects per-user saved interests.
+  $build['#cache']['contexts'][] = 'user';
+}
 
 /**
  * Implements hook_entity_insert().
