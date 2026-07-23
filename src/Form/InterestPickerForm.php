@@ -60,10 +60,15 @@ class InterestPickerForm extends FormBase {
       return ['#markup' => $this->t('Log in to choose your areas of interest.')];
     }
 
-    // Top-level Area of Interest terms make a tidy picker.
+    // Full Area-of-Interest hierarchy (categories + their subcategories), in
+    // tree order. Children are dash-prefixed by depth (Drupal's native taxonomy
+    // convention) so the theme's global interest-hierarchy.js treats them as
+    // subcategories — making the top-level categories non-selectable headers
+    // and rolling a child selection up to its parent. Same behaviour as the old
+    // profile-form widget.
     $options = [];
-    foreach ($this->entityTypeManager->getStorage('taxonomy_term')->loadTree('area_of_interest', 0, 1) as $term) {
-      $options[$term->tid] = $term->name;
+    foreach ($this->entityTypeManager->getStorage('taxonomy_term')->loadTree('area_of_interest') as $term) {
+      $options[$term->tid] = str_repeat('-', (int) $term->depth) . $term->name;
     }
 
     $default = [];
@@ -86,6 +91,10 @@ class InterestPickerForm extends FormBase {
       '#title_display' => 'invisible',
       '#options' => $options,
       '#default_value' => $default,
+      // The class the theme's interest-hierarchy.js keys off (it loads globally),
+      // so the parent/child rollup + non-selectable top level apply here.
+      '#prefix' => '<div class="field--name-field-member-areas-interest">',
+      '#suffix' => '</div>',
     ];
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['submit'] = [
