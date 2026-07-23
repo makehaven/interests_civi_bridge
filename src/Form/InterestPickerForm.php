@@ -78,7 +78,7 @@ class InterestPickerForm extends FormBase {
 
     $form['#attributes']['class'][] = 'mh-interest-picker';
     $form['intro'] = [
-      '#markup' => '<p class="mh-interest-picker__intro">' . $this->t('Pick what you want to make. We use this to add you to the right Slack channels and tailor your weekly email — you can change it any time.') . '</p>',
+      '#markup' => '<p class="mh-interest-picker__intro">' . $this->t('Pick the areas you\'re interested in. We use this to add you to the right Slack channels and tailor your weekly email — you can change it any time.') . '</p>',
     ];
     $form['interests'] = [
       '#type' => 'checkboxes',

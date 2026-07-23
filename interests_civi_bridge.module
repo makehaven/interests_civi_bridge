@@ -32,7 +32,7 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
     '#attributes' => ['class' => ['mh-interest-picker-wrap']],
     '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
     'heading' => [
-      '#markup' => '<h3 class="mh-interest-picker-heading">' . t('Tell us what you want to make') . '</h3>',
+      '#markup' => '<h3 class="mh-interest-picker-heading">' . t('What are you interested in?') . '</h3>',
     ],
     'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
   ];
