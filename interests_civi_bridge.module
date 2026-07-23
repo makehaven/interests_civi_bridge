@@ -36,8 +36,124 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
     ],
     'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
   ];
-  // The picker reflects per-user saved interests.
+
+  // Recommendations for the member's saved interests — shown after they save
+  // (the save reloads the page, so the picks are reflected here). Projects are
+  // cleanly interest-tagged today; tools + badges need interest-tagging first
+  // (see docs/proposals/INTERACTIVE_ONBOARDING_INTERESTS_PLAN.md §6).
+  $recs = _interests_civi_bridge_interest_recommendations();
+  if ($recs) {
+    $build['interests_recommendations'] = $recs + ['#weight' => -49];
+  }
+
+  // The picker + recommendations reflect per-user saved interests.
   $build['#cache']['contexts'][] = 'user';
+}
+
+/**
+ * Build the "for your interests" recommendation cards (projects for now).
+ *
+ * Defensive: any failure returns an empty array so the thank-you page never
+ * breaks for a member.
+ */
+function _interests_civi_bridge_interest_recommendations(): array {
+  try {
+    $account = \Drupal::currentUser();
+    $etm = \Drupal::entityTypeManager();
+    $user = \Drupal\user\Entity\User::load($account->id());
+    if (!$user) {
+      return [];
+    }
+    $profile = $etm->getStorage('profile')->loadByUser($user, 'main');
+    if (!$profile || !$profile->hasField('field_member_areas_interest')) {
+      return [];
+    }
+    $tids = [];
+    foreach ($profile->get('field_member_areas_interest') as $item) {
+      if (!empty($item->target_id)) {
+        $tids[] = (int) $item->target_id;
+      }
+    }
+    if (!$tids) {
+      return [];
+    }
+    // Broaden to children so a parent-category pick still matches child-tagged
+    // projects.
+    $term_storage = $etm->getStorage('taxonomy_term');
+    $expanded = $tids;
+    foreach ($tids as $tid) {
+      foreach ($term_storage->loadTree('area_of_interest', $tid) as $child) {
+        $expanded[] = (int) $child->tid;
+      }
+    }
+    $expanded = array_values(array_unique($expanded));
+
+    $nids = $etm->getStorage('node')->getQuery()
+      ->condition('type', 'project')
+      ->condition('status', 1)
+      ->condition('field_project_area_of_interest', $expanded, 'IN')
+      ->range(0, 6)
+      ->accessCheck(TRUE)
+      ->execute();
+    if (!$nids) {
+      return [];
+    }
+    $nodes = $etm->getStorage('node')->loadMultiple($nids);
+    $flag_builder = \Drupal::hasService('flag.link_builder') ? \Drupal::service('flag.link_builder') : NULL;
+    $cards = [];
+    foreach ($nodes as $node) {
+      $image = [];
+      if ($node->hasField('field_project_completed_image') && !$node->get('field_project_completed_image')->isEmpty()) {
+        $file = $node->get('field_project_completed_image')->entity;
+        if ($file) {
+          $image = [
+            '#theme' => 'image_style',
+            '#style_name' => 'medium',
+            '#uri' => $file->getFileUri(),
+            '#alt' => $node->label(),
+          ];
+        }
+      }
+      $star = [];
+      if ($flag_builder) {
+        try {
+          $star = $flag_builder->build('node', $node->id(), 'want_to_make');
+        }
+        catch (\Exception $e) {
+          $star = [];
+        }
+      }
+      $cards[] = [
+        '#type' => 'container',
+        '#attributes' => ['class' => ['mh-rec-card']],
+        'image' => $image,
+        'title' => [
+          '#type' => 'link',
+          '#title' => $node->label(),
+          '#url' => $node->toUrl(),
+          '#attributes' => ['class' => ['mh-rec-card__title']],
+        ],
+        'star' => $star ? ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-card__star']]] + ['flag' => $star] : [],
+      ];
+    }
+    if (!$cards) {
+      return [];
+    }
+    return [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['mh-interest-recs']],
+      '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
+      'heading' => [
+        '#markup' => '<h3 class="mh-interest-recs__heading">' . t('Projects for your interests') . '</h3>'
+          . '<p class="mh-interest-recs__intro">' . t('Star any you want to make — they save to your profile.') . '</p>',
+      ],
+      'cards' => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-grid']]] + $cards,
+    ];
+  }
+  catch (\Exception $e) {
+    \Drupal::logger('interests_civi_bridge')->warning('interest recommendations failed: @m', ['@m' => $e->getMessage()]);
+    return [];
+  }
 }
 
 /**
