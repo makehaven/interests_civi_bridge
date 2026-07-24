@@ -99,48 +99,20 @@ function _interests_civi_bridge_interest_recommendations(): array {
       return [];
     }
     $nodes = $etm->getStorage('node')->loadMultiple($nids);
-    $flag_builder = \Drupal::hasService('flag.link_builder') ? \Drupal::service('flag.link_builder') : NULL;
+    // Render each project in its existing teaser display rather than
+    // hand-building a card. The teaser already carries the completed-project
+    // image and the Want to Make / Made It flags, so the cards stay consistent
+    // with project listings elsewhere and editors keep control of them. It also
+    // renders the flag links in a proper entity context — building them
+    // directly via flag.link_builder throws, because the flag action route
+    // needs the view_mode that only entity rendering supplies.
+    $view_builder = $etm->getViewBuilder('node');
     $cards = [];
     foreach ($nodes as $node) {
-      // Prefer the finished-project photo; fall back to the design image so a
-      // project that only has plans still shows a picture rather than a bare
-      // link.
-      $image = [];
-      foreach (['field_project_completed_image', 'field_project_design_image'] as $image_field) {
-        if (!$node->hasField($image_field) || $node->get($image_field)->isEmpty()) {
-          continue;
-        }
-        $file = $node->get($image_field)->entity;
-        if ($file) {
-          $image = [
-            '#theme' => 'image_style',
-            '#style_name' => 'medium',
-            '#uri' => $file->getFileUri(),
-            '#alt' => $node->label(),
-          ];
-          break;
-        }
-      }
-      $star = [];
-      if ($flag_builder) {
-        try {
-          $star = $flag_builder->build('node', $node->id(), 'want_to_make');
-        }
-        catch (\Exception $e) {
-          $star = [];
-        }
-      }
       $cards[] = [
         '#type' => 'container',
         '#attributes' => ['class' => ['mh-rec-card']],
-        'image' => $image,
-        'title' => [
-          '#type' => 'link',
-          '#title' => $node->label(),
-          '#url' => $node->toUrl(),
-          '#attributes' => ['class' => ['mh-rec-card__title']],
-        ],
-        'star' => $star ? ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-card__star']]] + ['flag' => $star] : [],
+        'teaser' => $view_builder->view($node, 'teaser'),
       ];
     }
     if (!$cards) {
