@@ -102,9 +102,15 @@ function _interests_civi_bridge_interest_recommendations(): array {
     $flag_builder = \Drupal::hasService('flag.link_builder') ? \Drupal::service('flag.link_builder') : NULL;
     $cards = [];
     foreach ($nodes as $node) {
+      // Prefer the finished-project photo; fall back to the design image so a
+      // project that only has plans still shows a picture rather than a bare
+      // link.
       $image = [];
-      if ($node->hasField('field_project_completed_image') && !$node->get('field_project_completed_image')->isEmpty()) {
-        $file = $node->get('field_project_completed_image')->entity;
+      foreach (['field_project_completed_image', 'field_project_design_image'] as $image_field) {
+        if (!$node->hasField($image_field) || $node->get($image_field)->isEmpty()) {
+          continue;
+        }
+        $file = $node->get($image_field)->entity;
         if ($file) {
           $image = [
             '#theme' => 'image_style',
@@ -112,6 +118,7 @@ function _interests_civi_bridge_interest_recommendations(): array {
             '#uri' => $file->getFileUri(),
             '#alt' => $node->label(),
           ];
+          break;
         }
       }
       $star = [];
