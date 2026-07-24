@@ -104,6 +104,15 @@
   font-size: 0.9rem;
   text-decoration: none;
 }
+/* Want to Make star, appended below the teaser. */
+.mh-rec-card__star {
+  padding: 0.5rem 0.9rem 0.85rem;
+  margin-top: auto;
+}
+.mh-rec-card__star a {
+  font-size: 0.9rem;
+  text-decoration: none;
+}
 /* The teaser's "Read more" link is redundant when the whole card links out. */
 .mh-rec-card .node__links,
 .mh-rec-card ul.links.inline {

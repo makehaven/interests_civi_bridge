@@ -107,13 +107,33 @@ function _interests_civi_bridge_interest_recommendations(): array {
     // directly via flag.link_builder throws, because the flag action route
     // needs the view_mode that only entity rendering supplies.
     $view_builder = $etm->getViewBuilder('node');
+    $flag_builder = \Drupal::hasService('flag.link_builder') ? \Drupal::service('flag.link_builder') : NULL;
     $cards = [];
     foreach ($nodes as $node) {
-      $cards[] = [
+      $card = [
         '#type' => 'container',
         '#attributes' => ['class' => ['mh-rec-card']],
         'teaser' => $view_builder->view($node, 'teaser'),
       ];
+      // The theme's project-card template renders the image and title only, so
+      // add the Want to Make link explicitly. $view_mode must be passed: it
+      // defaults to NULL and the flag action route rejects an empty value.
+      if ($flag_builder) {
+        try {
+          $card['star'] = [
+            '#type' => 'container',
+            '#attributes' => ['class' => ['mh-rec-card__star']],
+            'flag' => $flag_builder->build('node', $node->id(), 'want_to_make', 'teaser'),
+          ];
+        }
+        catch (\Exception $e) {
+          \Drupal::logger('interests_civi_bridge')->warning('want_to_make link failed for node @n: @m', [
+            '@n' => $node->id(),
+            '@m' => $e->getMessage(),
+          ]);
+        }
+      }
+      $cards[] = $card;
     }
     if (!$cards) {
       return [];
