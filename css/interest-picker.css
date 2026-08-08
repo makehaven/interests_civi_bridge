@@ -27,6 +27,54 @@
   margin-top: 1.4rem;
 }
 
+/* "How did you discover MakeHaven?" — asked here because this page is the only
+   deferred-field capture point with 100% completion (see InterestPickerForm).
+   Separated from the interest grid so it reads as a second, smaller question
+   rather than another row of checkboxes. */
+.mh-interest-picker__discovery {
+  margin-top: var(--mh-space-lg, 1.5rem);
+  padding-top: var(--mh-space-lg, 1.5rem);
+  border-top: 1px solid var(--mh-color-border, #d9d9d9);
+}
+/* Barrio renders a radios element as:
+     fieldset > legend.fieldset-legend + .fieldset-wrapper > div > .form-check*
+   so the grid has to go on that inner div, not on the fieldset — gridding the
+   fieldset just lays out the legend and the wrapper. */
+.mh-interest-picker__discovery fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mh-interest-picker__discovery .fieldset-legend {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+/* Two columns where there is room, one on a phone. */
+.mh-interest-picker__discovery .fieldset-wrapper > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0 var(--mh-space-md, 1rem);
+  margin-top: var(--mh-space-xs, 0.5rem);
+}
+/* Each option is a .form-check (input + label); keep Barrio's alignment and
+   only pad the row out to a thumb-sized tap target, since most signups finish
+   on a phone. */
+.mh-interest-picker__discovery .form-check {
+  margin: 0;
+  padding-top: var(--mh-space-xs, 0.5rem);
+  padding-bottom: var(--mh-space-xs, 0.5rem);
+  /* 44px — the usual minimum touch-target height. Padding alone lands at 42. */
+  min-height: 2.75rem;
+}
+.mh-interest-picker__discovery .form-check-label {
+  cursor: pointer;
+  display: block;
+}
+.mh-interest-picker__discovery-detail {
+  margin-top: var(--mh-space-sm, 0.75rem);
+  max-width: 32rem;
+}
+
 /* "Projects for your interests" recommendation cards (interests_civi_bridge_node_view). */
 .mh-interest-recs {
   max-width: 960px;
