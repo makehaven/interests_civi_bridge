@@ -2,3 +2,7 @@ interest_picker:
   css:
     theme:
       css/interest-picker.css: {}
+  js:
+    js/rec-cards.js: {}
+  dependencies:
+    - core/drupal

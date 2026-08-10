@@ -231,3 +231,94 @@ details.mh-interest-picker-summary[open] {
   background: #fff;
   padding: 0.75rem;
 }
+
+/* --- Card actions + uniform images (2026-08-10 round 2) ------------------ */
+
+/* Uniform image band no matter the source aspect ratio. */
+.mh-rec-card .project-card__image {
+  height: 170px;
+  overflow: hidden;
+}
+.mh-rec-card .project-card__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Badge artwork is logo-like — contain, don't crop (after the cover rule so
+   it wins the tie). */
+.mh-rec-card--badge .project-card__image img {
+  object-fit: contain;
+  padding: 0.75rem;
+}
+.mh-rec-card .project-card__no-image {
+  height: 100%;
+}
+
+/* Starring is the primary card action: it acts in place (AJAX), while
+   viewing navigates away from the onboarding page (JR, 2026-08-10).
+   Selectors carry extra weight because the theme's equipment.css styles
+   .flag-tool-favorite as an outline pill and loads after module CSS. */
+.mh-rec-card .mh-rec-card__star {
+  padding: 0 0.9rem 0.9rem;
+}
+.mh-rec-card .mh-rec-card__star .flag {
+  display: block;
+  padding: 0;
+  margin: 0;
+}
+.mh-rec-card .mh-rec-card__star .flag a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  background: var(--mh-color-brand-primary, #8b1919);
+  color: #fff;
+  border: 1px solid var(--mh-color-brand-primary, #8b1919);
+  border-radius: var(--mh-radius-sm, 0.25rem);
+  padding: 0.45rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+}
+.mh-rec-card .mh-rec-card__star .flag a:hover,
+.mh-rec-card .mh-rec-card__star .flag a:focus {
+  background: var(--mh-color-brand-primary-strong, #710a0a);
+  border-color: var(--mh-color-brand-primary-strong, #710a0a);
+  color: #fff;
+  transform: none;
+}
+/* Flagged: quiet outline so saved cards read as saved (flag puts the
+   action-unflag class on the wrapper div, not the link). */
+.mh-rec-card .mh-rec-card__star .flag.action-unflag a {
+  background: #fff;
+  color: var(--mh-color-brand-primary, #8b1919);
+}
+.mh-rec-card .mh-rec-card__star .flag.action-unflag a:hover,
+.mh-rec-card .mh-rec-card__star .flag.action-unflag a:focus {
+  background: rgba(139, 25, 25, 0.06);
+  color: var(--mh-color-brand-primary, #8b1919);
+}
+
+/* Demote View Project / View Tool to a quiet link — badges keep their solid
+   Start This Badge button (no star to compete with). */
+/* !important matches the theme's own .btn-primary !important rules
+   (components/buttons.css) — nothing weaker can demote these. */
+.mh-rec-card:not(.mh-rec-card--badge) .card-footer a.btn {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: var(--mh-color-brand-primary, #8b1919) !important;
+  text-decoration: underline;
+  font-weight: 400;
+  font-size: 0.9rem;
+  padding: 0;
+}
+.mh-rec-card:not(.mh-rec-card--badge) .card-footer a.btn:hover,
+.mh-rec-card:not(.mh-rec-card--badge) .card-footer a.btn:focus {
+  background-color: transparent !important;
+  color: var(--mh-color-brand-primary-strong, #710a0a) !important;
+}
+.mh-rec-card:not(.mh-rec-card--badge) .card-footer {
+  padding-top: 0;
+  padding-bottom: 0.25rem;
+}
