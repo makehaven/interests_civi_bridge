@@ -322,3 +322,41 @@ details.mh-interest-picker-summary[open] {
   padding-top: 0;
   padding-bottom: 0.25rem;
 }
+
+/* --- Next-step boxes in the node body (2026-08-10 content port) ---------- */
+/* The library is attached for anonymous too, so these style the static body
+   even before login. */
+.mh-next-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 1.25rem 0 1.5rem;
+}
+.mh-next-step {
+  border: 1px solid #e7e2da;
+  border-radius: var(--mh-radius-md, 0.5rem);
+  background: rgba(139, 25, 25, 0.02);
+  padding: 1.1rem 1.2rem;
+}
+.mh-next-step__icon {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+.mh-next-step h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.4rem;
+}
+.mh-next-step p,
+.mh-next-step ul {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #494139;
+  margin: 0;
+}
+.mh-next-step ul {
+  padding-left: 1.1rem;
+}
+.mh-next-step li {
+  margin-bottom: 0.35rem;
+}

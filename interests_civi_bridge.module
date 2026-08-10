@@ -35,6 +35,10 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
   if ((int) $node->id() !== INTERESTS_CIVI_BRIDGE_THANKYOU_NID || $view_mode !== 'full') {
     return;
   }
+  // Always attached, even for anonymous: the node body's next-step boxes
+  // (.mh-next-steps, part of the 2026-08-10 content port) are styled by this
+  // library too.
+  $build['#attached']['library'][] = 'interests_civi_bridge/interest_picker';
   if (!\Drupal::currentUser()->isAuthenticated()) {
     return;
   }
@@ -224,7 +228,8 @@ function _interests_civi_bridge_guide(): array {
 function _interests_civi_bridge_rec_section(array $spec, array $interest_tids): array {
   $etm = \Drupal::entityTypeManager();
   $storage = $etm->getStorage('node');
-  $limit = 6;
+  // One desktop row — more reads as a wall (JR, 2026-08-10).
+  $limit = 4;
 
   $matched_ids = [];
   if ($interest_tids) {
@@ -357,7 +362,8 @@ function _interests_civi_bridge_rec_section(array $spec, array $interest_tids): 
  * docs/proposals/INTERACTIVE_ONBOARDING_INTERESTS_PLAN.md §6).
  */
 function _interests_civi_bridge_badge_section(array $interest_tids): array {
-  $limit = 6;
+  // One desktop row — more reads as a wall (JR, 2026-08-10).
+  $limit = 4;
 
   // Badge tid => number of qualifying tools requiring it, most first.
   $matched = $interest_tids
