@@ -360,3 +360,24 @@ details.mh-interest-picker-summary[open] {
 .mh-next-step li {
   margin-bottom: 0.35rem;
 }
+
+/* One box per card: the wrapper owns the border — strip the inner Bootstrap
+   .card frame, whose second outline and inset read as broken (JR,
+   2026-08-10). */
+.mh-rec-card .card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.mh-rec-card .card-title {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.mh-rec-card .card-title a {
+  text-decoration: none;
+}
+.mh-rec-card .card-title a:hover,
+.mh-rec-card .card-title a:focus {
+  text-decoration: underline;
+}

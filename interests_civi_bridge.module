@@ -272,8 +272,11 @@ function _interests_civi_bridge_rec_section(array $spec, array $interest_tids): 
 
   // Flag counts are still sparse site-wide (want_to_make has a single
   // flagging as of 2026-08), so the popular pool alone cannot fill a section.
-  // Final tier: newest published nodes that have an image.
-  if (count($matched) < $limit) {
+  // Final tier: newest published nodes that have an image. Keyed to the
+  // *imaged* count, not the total — with enough imaged supply no placeholder
+  // card should ever make the row (JR, 2026-08-10).
+  $imaged = count(array_filter($matched, fn($n) => $n->hasField($spec['image_field']) && !$n->get($spec['image_field'])->isEmpty()));
+  if ($imaged < $limit) {
     $have = array_map(fn($n) => (int) $n->id(), $matched);
     $query = $storage->getQuery()
       ->condition('type', $spec['type'])
