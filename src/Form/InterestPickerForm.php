@@ -280,7 +280,22 @@ class InterestPickerForm extends FormBase {
     }
 
     $profile->save();
-    $this->messenger()->addStatus($this->t('Thanks! Your interests are saved — we will use them to tailor your Slack channels and weekly email.'));
+
+    if ($selected) {
+      $this->messenger()->addStatus($this->t('Thanks! Your interests are saved — we will use them to tailor your Slack channels and weekly email.'));
+      // Land the member on their personalized guide rather than back at the
+      // top of the page (the reload-to-top made the save feel like nothing
+      // happened — JR, 2026-08-10). The anchor is rendered by
+      // _interests_civi_bridge_guide().
+      $form_state->setRedirect(
+        'entity.node.canonical',
+        ['node' => INTERESTS_CIVI_BRIDGE_THANKYOU_NID],
+        ['fragment' => 'your-guide'],
+      );
+    }
+    else {
+      $this->messenger()->addWarning($this->t('No interests picked yet — choose a few to unlock a guide built around them, or use the skip link below.'));
+    }
   }
 
 }

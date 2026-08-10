@@ -1,5 +1,6 @@
 <?php
 
+use Drupal\Core\Url;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\profile\Entity\ProfileInterface;
@@ -11,11 +12,22 @@ use Drupal\profile\Entity\ProfileInterface;
 const INTERESTS_CIVI_BRIDGE_THANKYOU_NID = 614;
 
 /**
+ * Item-status terms an equipment card may show, mirroring the include list in
+ * views.view.equipment (the public /equipment listing). Items marked Gone or
+ * in Storage never appear as recommendations.
+ */
+const INTERESTS_CIVI_BRIDGE_ITEM_STATUS_TIDS = [3242, 3496, 3471, 3235, 2009];
+
+/**
  * Implements hook_node_view().
  *
- * Injects the Areas-of-Interest picker at the top of the onboarding thank-you
- * page for logged-in members, so we capture interests at the end of signup
- * (drives Slack routing + the weekly digest) without lengthening the join form.
+ * Stages the onboarding thank-you page around whether the member has picked
+ * interests yet (JR, 2026-08-10 — the flat page buried the picker under the
+ * full static guide and members missed the connection):
+ * - No interests saved: the page is just the picker; the node body is hidden
+ *   (see interests_civi_bridge_preprocess_field()) with a skip link out.
+ * - Interests saved (or ?browse=1): the picker collapses to an editable
+ *   summary above the interest-matched guide cards and the node body.
  * Rendered in the normal page pipeline (not via a body token) so the form
  * submits and saves properly.
  */
@@ -26,61 +38,128 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
   if (!\Drupal::currentUser()->isAuthenticated()) {
     return;
   }
+
+  // Picker, summary and guide all reflect per-user saved interests; the skip
+  // link switches stages via the browse query arg.
+  $build['#cache']['contexts'][] = 'user';
+  $build['#cache']['contexts'][] = 'url.query_args:browse';
+
+  $interests = _interests_civi_bridge_member_interests();
+
+  if (!$interests && !_interests_civi_bridge_is_browsing()) {
+    // Stage 1 — just the question. The body is suppressed in
+    // interests_civi_bridge_preprocess_field() (Layout Builder renders it, so
+    // it is not addressable here as $build['body']).
+    $build['interests_picker'] = [
+      '#type' => 'container',
+      '#weight' => -50,
+      '#attributes' => ['class' => ['mh-interest-picker-wrap']],
+      '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
+      'heading' => [
+        '#markup' => '<h2 class="mh-interest-picker-heading">' . t('First things first — what do you want to make?') . '</h2>',
+      ],
+      'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
+      'skip' => [
+        '#type' => 'link',
+        '#title' => t('Prefer to just look around? Skip this for now'),
+        '#url' => Url::fromRoute('entity.node.canonical', ['node' => INTERESTS_CIVI_BRIDGE_THANKYOU_NID], ['query' => ['browse' => 1]]),
+        '#attributes' => ['class' => ['mh-interest-picker__skip']],
+      ],
+    ];
+    return;
+  }
+
+  // Stage 2 — collapsed, editable interests + the personalized guide.
+  $summary = $interests
+    ? t('Your interests: @list — click to change', ['@list' => implode(', ', $interests)])
+    : t('Pick your interests to personalize this guide');
   $build['interests_picker'] = [
-    '#type' => 'container',
+    '#type' => 'details',
+    '#title' => $summary,
+    '#open' => !$interests,
     '#weight' => -50,
-    '#attributes' => ['class' => ['mh-interest-picker-wrap']],
+    '#attributes' => ['class' => ['mh-interest-picker-summary']],
     '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
-    'heading' => [
-      '#markup' => '<h3 class="mh-interest-picker-heading">' . t('What are you interested in?') . '</h3>',
-    ],
     'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
   ];
 
-  // Recommendations for the member's saved interests — shown after they save
-  // (the save reloads the page, so the picks are reflected here). Projects are
-  // cleanly interest-tagged today; tools + badges need interest-tagging first
-  // (see docs/proposals/INTERACTIVE_ONBOARDING_INTERESTS_PLAN.md §6).
-  $recs = _interests_civi_bridge_interest_recommendations();
-  if ($recs) {
-    $build['interests_recommendations'] = $recs + ['#weight' => -49];
+  $guide = _interests_civi_bridge_guide();
+  if ($guide) {
+    $build['interests_guide'] = $guide + ['#weight' => -49];
   }
-
-  // The picker + recommendations reflect per-user saved interests.
-  $build['#cache']['contexts'][] = 'user';
 }
 
 /**
- * Build the "for your interests" recommendation cards (projects for now).
+ * Implements hook_preprocess_field().
+ *
+ * Hides the thank-you page's static body while the member has not picked
+ * interests yet (stage 1) — the page should be a single question, not a
+ * question buried in a guide. Layout Builder owns the body render, so the
+ * field template is the reliable interception point (same approach as the
+ * theme's /gems body-token handling).
+ */
+function interests_civi_bridge_preprocess_field(array &$variables): void {
+  if (($variables['field_name'] ?? '') !== 'body') {
+    return;
+  }
+  $node = $variables['element']['#object'] ?? NULL;
+  if (!$node instanceof NodeInterface || (int) $node->id() !== INTERESTS_CIVI_BRIDGE_THANKYOU_NID) {
+    return;
+  }
+  if (!\Drupal::currentUser()->isAuthenticated()) {
+    return;
+  }
+  if (!_interests_civi_bridge_member_interests() && !_interests_civi_bridge_is_browsing()) {
+    $variables['items'] = [];
+  }
+}
+
+/**
+ * Whether the member clicked "skip for now" (?browse=1).
+ */
+function _interests_civi_bridge_is_browsing(): bool {
+  return \Drupal::request()->query->has('browse');
+}
+
+/**
+ * The current member's saved Areas of Interest, as tid => name.
+ */
+function _interests_civi_bridge_member_interests(): array {
+  try {
+    $user = \Drupal\user\Entity\User::load(\Drupal::currentUser()->id());
+    if (!$user) {
+      return [];
+    }
+    $profile = \Drupal::entityTypeManager()->getStorage('profile')->loadByUser($user, 'main');
+    if (!$profile || !$profile->hasField('field_member_areas_interest')) {
+      return [];
+    }
+    $interests = [];
+    foreach ($profile->get('field_member_areas_interest') as $item) {
+      if ($item->entity) {
+        $interests[(int) $item->target_id] = $item->entity->label();
+      }
+    }
+    return $interests;
+  }
+  catch (\Exception $e) {
+    return [];
+  }
+}
+
+/**
+ * Builds the personalized getting-started guide: project + tool cards.
  *
  * Defensive: any failure returns an empty array so the thank-you page never
  * breaks for a member.
  */
-function _interests_civi_bridge_interest_recommendations(): array {
+function _interests_civi_bridge_guide(): array {
   try {
-    $account = \Drupal::currentUser();
-    $etm = \Drupal::entityTypeManager();
-    $user = \Drupal\user\Entity\User::load($account->id());
-    if (!$user) {
-      return [];
-    }
-    $profile = $etm->getStorage('profile')->loadByUser($user, 'main');
-    if (!$profile || !$profile->hasField('field_member_areas_interest')) {
-      return [];
-    }
-    $tids = [];
-    foreach ($profile->get('field_member_areas_interest') as $item) {
-      if (!empty($item->target_id)) {
-        $tids[] = (int) $item->target_id;
-      }
-    }
-    if (!$tids) {
-      return [];
-    }
+    $tids = array_keys(_interests_civi_bridge_member_interests());
     // Broaden to children so a parent-category pick still matches child-tagged
-    // projects.
-    $term_storage = $etm->getStorage('taxonomy_term');
+    // content.
     $expanded = $tids;
+    $term_storage = \Drupal::entityTypeManager()->getStorage('taxonomy_term');
     foreach ($tids as $tid) {
       foreach ($term_storage->loadTree('area_of_interest', $tid) as $child) {
         $expanded[] = (int) $child->tid;
@@ -88,71 +167,265 @@ function _interests_civi_bridge_interest_recommendations(): array {
     }
     $expanded = array_values(array_unique($expanded));
 
-    $nids = $etm->getStorage('node')->getQuery()
-      ->condition('type', 'project')
-      ->condition('status', 1)
-      ->condition('field_project_area_of_interest', $expanded, 'IN')
-      ->range(0, 6)
-      ->accessCheck(TRUE)
-      ->execute();
-    if (!$nids) {
-      return [];
-    }
-    $nodes = $etm->getStorage('node')->loadMultiple($nids);
-    // Render each project in its existing teaser display rather than
-    // hand-building a card. The teaser already carries the completed-project
-    // image and the Want to Make / Made It flags, so the cards stay consistent
-    // with project listings elsewhere and editors keep control of them. It also
-    // renders the flag links in a proper entity context — building them
-    // directly via flag.link_builder throws, because the flag action route
-    // needs the view_mode that only entity rendering supplies.
-    $view_builder = $etm->getViewBuilder('node');
-    $flag_builder = \Drupal::hasService('flag.link_builder') ? \Drupal::service('flag.link_builder') : NULL;
-    $cards = [];
-    foreach ($nodes as $node) {
-      $card = [
-        '#type' => 'container',
-        '#attributes' => ['class' => ['mh-rec-card']],
-        'teaser' => $view_builder->view($node, 'teaser'),
-      ];
-      // The theme's project-card template renders the image and title only, so
-      // add the Want to Make link explicitly. $view_mode must be passed: it
-      // defaults to NULL and the flag action route rejects an empty value.
-      if ($flag_builder) {
-        try {
-          $card['star'] = [
-            '#type' => 'container',
-            '#attributes' => ['class' => ['mh-rec-card__star']],
-            'flag' => $flag_builder->build('node', $node->id(), 'want_to_make', 'teaser'),
-          ];
-        }
-        catch (\Exception $e) {
-          \Drupal::logger('interests_civi_bridge')->warning('want_to_make link failed for node @n: @m', [
-            '@n' => $node->id(),
-            '@m' => $e->getMessage(),
-          ]);
-        }
-      }
-      $cards[] = $card;
-    }
-    if (!$cards) {
+    $projects = _interests_civi_bridge_rec_section([
+      'type' => 'project',
+      'interest_field' => 'field_project_area_of_interest',
+      'image_field' => 'field_project_completed_image',
+      'flag' => 'want_to_make',
+      'matched_heading' => t('Projects for your interests'),
+      'fallback_heading' => t('Popular projects to try'),
+      'intro' => t('Star any you want to make — they save to your profile.'),
+    ], $expanded);
+
+    $tools = _interests_civi_bridge_rec_section([
+      'type' => 'item',
+      'interest_field' => 'field_item_area_interest',
+      'image_field' => 'field_item_image',
+      'flag' => 'tool_favorite',
+      'status_tids' => INTERESTS_CIVI_BRIDGE_ITEM_STATUS_TIDS,
+      'matched_heading' => t('Tools for your interests'),
+      'fallback_heading' => t('Popular tools to explore'),
+      'intro' => t('Star your favorites — most tools unlock with a short badge quiz.'),
+    ], $expanded);
+
+    if (!$projects && !$tools) {
       return [];
     }
     return [
       '#type' => 'container',
-      '#attributes' => ['class' => ['mh-interest-recs']],
+      // The anchor the picker's save redirect jumps to, so members land on
+      // their guide instead of back at the top of the page.
+      '#attributes' => ['id' => 'your-guide', 'class' => ['mh-interest-guide']],
       '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
       'heading' => [
-        '#markup' => '<h3 class="mh-interest-recs__heading">' . t('Projects for your interests') . '</h3>'
-          . '<p class="mh-interest-recs__intro">' . t('Star any you want to make — they save to your profile.') . '</p>',
+        '#markup' => '<h2 class="mh-interest-guide__heading">' . t('Your getting-started guide') . '</h2>',
       ],
-      'cards' => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-grid']]] + $cards,
+      'projects' => $projects ?: [],
+      'tools' => $tools ?: [],
     ];
   }
   catch (\Exception $e) {
-    \Drupal::logger('interests_civi_bridge')->warning('interest recommendations failed: @m', ['@m' => $e->getMessage()]);
+    \Drupal::logger('interests_civi_bridge')->warning('interest guide failed: @m', ['@m' => $e->getMessage()]);
     return [];
   }
+}
+
+/**
+ * Builds one recommendation card section (projects or tools).
+ *
+ * Interest-matched nodes come first, ranked imaged-before-imageless then by
+ * flag count. Thin matches (fewer than 3) are padded with the most-flagged
+ * nodes overall so nobody meets a single lonely card, and the heading drops
+ * the "for your interests" claim when most cards are the popular fallback.
+ */
+function _interests_civi_bridge_rec_section(array $spec, array $interest_tids): array {
+  $etm = \Drupal::entityTypeManager();
+  $storage = $etm->getStorage('node');
+  $limit = 6;
+
+  $matched_ids = [];
+  if ($interest_tids) {
+    $query = $storage->getQuery()
+      ->condition('type', $spec['type'])
+      ->condition('status', 1)
+      ->condition($spec['interest_field'], $interest_tids, 'IN')
+      ->range(0, 40)
+      ->accessCheck(TRUE);
+    if (!empty($spec['status_tids'])) {
+      $query->condition('field_item_status', $spec['status_tids'], 'IN');
+    }
+    $matched_ids = array_values($query->execute());
+  }
+
+  $counts = _interests_civi_bridge_flag_counts($spec['flag']);
+  $matched = _interests_civi_bridge_rank($storage->loadMultiple($matched_ids), $spec['image_field'], $counts);
+
+  // Pad thin sections from the most-flagged nodes overall.
+  if (count($matched) < 3) {
+    $popular_ids = array_diff(array_keys($counts), $matched_ids);
+    $pool = [];
+    foreach ($storage->loadMultiple(array_slice($popular_ids, 0, 40)) as $candidate) {
+      if ($candidate->bundle() !== $spec['type'] || !$candidate->isPublished()) {
+        continue;
+      }
+      if (!empty($spec['status_tids'])) {
+        $status = $candidate->hasField('field_item_status') ? (int) ($candidate->get('field_item_status')->target_id ?? 0) : 0;
+        if (!in_array($status, $spec['status_tids'], TRUE)) {
+          continue;
+        }
+      }
+      if (!$candidate->access('view')) {
+        continue;
+      }
+      $pool[] = $candidate;
+    }
+    $matched = array_merge($matched, _interests_civi_bridge_rank($pool, $spec['image_field'], $counts));
+  }
+
+  // Flag counts are still sparse site-wide (want_to_make has a single
+  // flagging as of 2026-08), so the popular pool alone cannot fill a section.
+  // Final tier: newest published nodes that have an image.
+  if (count($matched) < $limit) {
+    $have = array_map(fn($n) => (int) $n->id(), $matched);
+    $query = $storage->getQuery()
+      ->condition('type', $spec['type'])
+      ->condition('status', 1)
+      ->exists($spec['image_field'])
+      ->sort('created', 'DESC')
+      ->range(0, $limit * 2)
+      ->accessCheck(TRUE);
+    if ($have) {
+      $query->condition('nid', $have, 'NOT IN');
+    }
+    if (!empty($spec['status_tids'])) {
+      $query->condition('field_item_status', $spec['status_tids'], 'IN');
+    }
+    foreach ($storage->loadMultiple($query->execute()) as $recent) {
+      $matched[] = $recent;
+    }
+  }
+
+  // Final pass: imaged cards lead regardless of which tier supplied them —
+  // usort is stable (PHP 8), so matched still outrank padding within each
+  // group. A grid opening on a placeholder glyph reads as broken.
+  $matched = _interests_civi_bridge_rank($matched, $spec['image_field'], []);
+
+  $nodes = array_slice($matched, 0, $limit);
+  if (!$nodes) {
+    return [];
+  }
+  $mostly_matched = count($matched_ids) >= 3;
+
+  $view_builder = $etm->getViewBuilder('node');
+  $flag_builder = \Drupal::hasService('flag.link_builder') ? \Drupal::service('flag.link_builder') : NULL;
+  $cards = [];
+  foreach ($nodes as $node) {
+    // Projects render their theme teaser (image, title, View Project button).
+    // Items have no card-style teaser template, so build the same markup the
+    // project card uses — the theme's .project-card styles apply to both.
+    $card = [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['mh-rec-card']],
+      'content' => $spec['type'] === 'project'
+        ? $view_builder->view($node, 'teaser')
+        : _interests_civi_bridge_item_card($node),
+    ];
+    // The flag link must be built with an explicit view mode: it defaults to
+    // NULL and the flag action route rejects an empty value.
+    if ($flag_builder) {
+      try {
+        $card['star'] = [
+          '#type' => 'container',
+          '#attributes' => ['class' => ['mh-rec-card__star']],
+          'flag' => $flag_builder->build('node', $node->id(), $spec['flag'], 'teaser'),
+        ];
+      }
+      catch (\Exception $e) {
+        \Drupal::logger('interests_civi_bridge')->warning('@flag link failed for node @n: @m', [
+          '@flag' => $spec['flag'],
+          '@n' => $node->id(),
+          '@m' => $e->getMessage(),
+        ]);
+      }
+    }
+    $cards[] = $card;
+  }
+
+  return [
+    '#type' => 'container',
+    '#attributes' => ['class' => ['mh-interest-recs']],
+    'heading' => [
+      '#markup' => '<h3 class="mh-interest-recs__heading">' . ($mostly_matched ? $spec['matched_heading'] : $spec['fallback_heading']) . '</h3>'
+        . '<p class="mh-interest-recs__intro">' . $spec['intro'] . '</p>',
+    ],
+    'cards' => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-grid']]] + $cards,
+  ];
+}
+
+/**
+ * Flag counts for a flag, entity_id => count, highest first.
+ */
+function _interests_civi_bridge_flag_counts(string $flag_id): array {
+  try {
+    return \Drupal::database()->select('flag_counts', 'fc')
+      ->fields('fc', ['entity_id', 'count'])
+      ->condition('flag_id', $flag_id)
+      ->condition('entity_type', 'node')
+      ->orderBy('count', 'DESC')
+      ->range(0, 200)
+      ->execute()
+      ->fetchAllKeyed();
+  }
+  catch (\Exception $e) {
+    return [];
+  }
+}
+
+/**
+ * Ranks nodes: imaged before imageless, then by flag count descending.
+ *
+ * The image-first rule exists because the card template falls back to a
+ * placeholder glyph — a grid led by placeholders reads as broken (JR,
+ * 2026-08-10).
+ */
+function _interests_civi_bridge_rank(array $nodes, string $image_field, array $counts): array {
+  $nodes = array_values($nodes);
+  usort($nodes, function ($a, $b) use ($image_field, $counts) {
+    $a_img = $a->hasField($image_field) && !$a->get($image_field)->isEmpty() ? 1 : 0;
+    $b_img = $b->hasField($image_field) && !$b->get($image_field)->isEmpty() ? 1 : 0;
+    if ($a_img !== $b_img) {
+      return $b_img <=> $a_img;
+    }
+    return ($counts[$b->id()] ?? 0) <=> ($counts[$a->id()] ?? 0);
+  });
+  return $nodes;
+}
+
+/**
+ * A card for an equipment item, in the theme's project-card markup.
+ */
+function _interests_civi_bridge_item_card(NodeInterface $node): array {
+  $url = $node->toUrl()->toString();
+  $image = [];
+  if ($node->hasField('field_item_image') && ($file = $node->get('field_item_image')->entity)) {
+    $image = [
+      '#theme' => 'image_style',
+      // Same style the project teaser uses, so the grids match.
+      '#style_name' => 'large',
+      '#uri' => $file->getFileUri(),
+      '#alt' => $node->label(),
+    ];
+  }
+  return [
+    '#type' => 'container',
+    '#attributes' => ['class' => ['card', 'h-100', 'project-card']],
+    'image' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['project-card__image', 'card-img-top']],
+      'link' => [
+        '#type' => 'link',
+        '#title' => $image ?: ['#markup' => '<span class="project-card__no-image">🛠️</span>'],
+        '#url' => $node->toUrl(),
+      ],
+    ],
+    'body' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['card-body', 'd-flex', 'flex-column']],
+      'title' => [
+        '#markup' => '<h5 class="card-title"><a href="' . $url . '" rel="bookmark">' . htmlspecialchars($node->label(), ENT_QUOTES) . '</a></h5>',
+      ],
+    ],
+    'footer' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['card-footer', 'bg-transparent', 'border-0', 'pb-3', 'mt-auto']],
+      'link' => [
+        '#type' => 'link',
+        '#title' => t('View Tool'),
+        '#url' => $node->toUrl(),
+        '#attributes' => ['class' => ['btn', 'btn-primary', 'w-100']],
+      ],
+    ],
+  ];
 }
 
 /**
