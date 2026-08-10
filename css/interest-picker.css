@@ -166,3 +166,61 @@
 .mh-rec-card ul.links.inline {
   display: none;
 }
+
+/* --- Staged flow (2026-08-10) ------------------------------------------- */
+
+/* Stage 1's escape hatch under the picker. */
+.mh-interest-picker__skip {
+  display: block;
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.92rem;
+  color: #6f675f;
+}
+
+/* Stage 2: the picker collapsed to an editable one-line summary. */
+details.mh-interest-picker-summary {
+  max-width: 960px;
+  margin: 0 auto 1.5rem;
+  padding: 0.6rem 1rem;
+  background: rgba(139, 25, 25, 0.03);
+  border: 1px solid #e7e2da;
+  border-radius: 10px;
+}
+details.mh-interest-picker-summary > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #242019;
+}
+details.mh-interest-picker-summary[open] {
+  padding-bottom: 1.25rem;
+}
+
+/* The guide wrapper: anchor target + heading above both card sections. */
+.mh-interest-guide {
+  /* Keep the anchor jump clear of any fixed header. */
+  scroll-margin-top: 90px;
+}
+.mh-interest-guide__heading {
+  text-align: center;
+  margin: 0 0 1.25rem;
+}
+
+/* Hand-built tool cards reuse the theme's project-card classes; the glyph
+   fallback needs the same sizing the theme gives projects without images. */
+.mh-rec-card .project-card__no-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  font-size: 3rem;
+  background: #f2f0ec;
+  text-decoration: none;
+}
+
+/* Some projects carry several completed-image deltas; a card is not a
+   gallery — show the first only. */
+.mh-rec-card .project-card__image img:not(:first-of-type),
+.mh-rec-card .project-card__image .field__item:not(:first-of-type) {
+  display: none;
+}
