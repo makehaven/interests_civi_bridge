@@ -224,3 +224,10 @@ details.mh-interest-picker-summary[open] {
 .mh-rec-card .project-card__image .field__item:not(:first-of-type) {
   display: none;
 }
+
+/* Badge images are logos/icons — contain, don't crop. */
+.mh-rec-card--badge .project-card__image img {
+  object-fit: contain;
+  background: #fff;
+  padding: 0.75rem;
+}

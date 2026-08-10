@@ -188,7 +188,9 @@ function _interests_civi_bridge_guide(): array {
       'intro' => t('Star your favorites — most tools unlock with a short badge quiz.'),
     ], $expanded);
 
-    if (!$projects && !$tools) {
+    $badges = _interests_civi_bridge_badge_section($expanded);
+
+    if (!$projects && !$tools && !$badges) {
       return [];
     }
     return [
@@ -202,6 +204,7 @@ function _interests_civi_bridge_guide(): array {
       ],
       'projects' => $projects ?: [],
       'tools' => $tools ?: [],
+      'badges' => $badges ?: [],
     ];
   }
   catch (\Exception $e) {
@@ -339,6 +342,157 @@ function _interests_civi_bridge_rec_section(array $spec, array $interest_tids): 
         . '<p class="mh-interest-recs__intro">' . $spec['intro'] . '</p>',
     ],
     'cards' => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-grid']]] + $cards,
+  ];
+}
+
+/**
+ * "Badges for your interests" — derived from the equipment those interests
+ * match.
+ *
+ * Badge terms carry no interest tag of their own, but equipment does, and
+ * every tool names its Required Badge (field_member_badges — 134 badges
+ * covered as of 2026-08). So the cards are the badges that unlock the most
+ * interest-matched operational tools: derivation instead of the badge-tagging
+ * campaign the July plan assumed (option A in
+ * docs/proposals/INTERACTIVE_ONBOARDING_INTERESTS_PLAN.md §6).
+ */
+function _interests_civi_bridge_badge_section(array $interest_tids): array {
+  $limit = 6;
+
+  // Badge tid => number of qualifying tools requiring it, most first.
+  $matched = $interest_tids
+    ? _interests_civi_bridge_badge_tool_counts($interest_tids)
+    : [];
+  $ordered = array_keys($matched);
+
+  // Pad thin matches with the badges required by the most tools overall.
+  if (count($ordered) < $limit) {
+    foreach (array_keys(_interests_civi_bridge_badge_tool_counts([])) as $tid) {
+      if (!isset($matched[$tid])) {
+        $ordered[] = $tid;
+      }
+    }
+  }
+
+  // A member who already holds a badge does not need it recommended. New
+  // joiners hold none — this matters for members revisiting the page.
+  $earned = [];
+  $user = \Drupal\user\Entity\User::load(\Drupal::currentUser()->id());
+  if ($user) {
+    $profile = \Drupal::entityTypeManager()->getStorage('profile')->loadByUser($user, 'main');
+    if ($profile && $profile->hasField('field_member_badges')) {
+      foreach ($profile->get('field_member_badges') as $item) {
+        $earned[(int) $item->target_id] = TRUE;
+      }
+    }
+  }
+
+  $term_storage = \Drupal::entityTypeManager()->getStorage('taxonomy_term');
+  $cards = [];
+  foreach ($ordered as $tid) {
+    if (isset($earned[(int) $tid])) {
+      continue;
+    }
+    $term = $term_storage->load($tid);
+    if (!$term || !$term->isPublished() || !$term->access('view')) {
+      continue;
+    }
+    // Imageless badge cards are skipped rather than ranked last: 136 of 145
+    // badges have images, so there is always enough imaged supply.
+    if (!$term->hasField('field_member_badge_image') || $term->get('field_member_badge_image')->isEmpty()) {
+      continue;
+    }
+    $cards[] = _interests_civi_bridge_badge_card($term);
+    if (count($cards) >= $limit) {
+      break;
+    }
+  }
+  if (!$cards) {
+    return [];
+  }
+
+  $mostly_matched = count($matched) >= 3;
+  return [
+    '#type' => 'container',
+    '#attributes' => ['class' => ['mh-interest-recs', 'mh-interest-recs--badges']],
+    'heading' => [
+      '#markup' => '<h3 class="mh-interest-recs__heading">' . ($mostly_matched ? t('Badges for your interests') : t('Popular first badges')) . '</h3>'
+        . '<p class="mh-interest-recs__intro">' . t('Each badge is a short quiz plus an in-person checkout — and it unlocks the tools above.') . '</p>',
+    ],
+    'cards' => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-grid']]] + array_map(
+      fn($card) => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-card', 'mh-rec-card--badge']], 'content' => $card],
+      $cards,
+    ),
+  ];
+}
+
+/**
+ * Badge tid => count of operational tools requiring it, highest first.
+ *
+ * With $interest_tids, only tools tagged with those interests count; empty
+ * means all operational tools (the popular-overall fallback).
+ */
+function _interests_civi_bridge_badge_tool_counts(array $interest_tids): array {
+  try {
+    $query = \Drupal::database()->select('node__field_member_badges', 'b');
+    $query->join('node_field_data', 'n', 'n.nid = b.entity_id AND n.type = :type AND n.status = 1', [':type' => 'item']);
+    $query->join('node__field_item_status', 's', 's.entity_id = b.entity_id');
+    $query->condition('s.field_item_status_target_id', INTERESTS_CIVI_BRIDGE_ITEM_STATUS_TIDS, 'IN');
+    if ($interest_tids) {
+      $query->join('node__field_item_area_interest', 'i', 'i.entity_id = b.entity_id');
+      $query->condition('i.field_item_area_interest_target_id', $interest_tids, 'IN');
+    }
+    $query->addField('b', 'field_member_badges_target_id', 'tid');
+    $query->addExpression('COUNT(DISTINCT b.entity_id)', 'tools');
+    $query->groupBy('b.field_member_badges_target_id');
+    $query->orderBy('tools', 'DESC');
+    $query->range(0, 40);
+    return $query->execute()->fetchAllKeyed();
+  }
+  catch (\Exception $e) {
+    return [];
+  }
+}
+
+/**
+ * A card for a badge term, in the theme's project-card markup.
+ */
+function _interests_civi_bridge_badge_card($term): array {
+  $file = $term->get('field_member_badge_image')->entity;
+  return [
+    '#type' => 'container',
+    '#attributes' => ['class' => ['card', 'h-100', 'project-card']],
+    'image' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['project-card__image', 'card-img-top']],
+      'link' => [
+        '#type' => 'link',
+        '#title' => $file ? [
+          '#theme' => 'image_style',
+          '#style_name' => 'large',
+          '#uri' => $file->getFileUri(),
+          '#alt' => $term->label(),
+        ] : ['#markup' => '<span class="project-card__no-image">🏅</span>'],
+        '#url' => $term->toUrl(),
+      ],
+    ],
+    'body' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['card-body', 'd-flex', 'flex-column']],
+      'title' => [
+        '#markup' => '<h5 class="card-title"><a href="' . $term->toUrl()->toString() . '">' . htmlspecialchars($term->label(), ENT_QUOTES) . '</a></h5>',
+      ],
+    ],
+    'footer' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['card-footer', 'bg-transparent', 'border-0', 'pb-3', 'mt-auto']],
+      'link' => [
+        '#type' => 'link',
+        '#title' => t('Start This Badge'),
+        '#url' => $term->toUrl(),
+        '#attributes' => ['class' => ['btn', 'btn-primary', 'w-100']],
+      ],
+    ],
   ];
 }
 
