@@ -481,7 +481,7 @@ function _interests_civi_bridge_badge_card($term): array {
           '#style_name' => 'large',
           '#uri' => $file->getFileUri(),
           '#alt' => $term->label(),
-        ] : ['#markup' => '<span class="project-card__no-image">🏅</span>'],
+        ] : ['#markup' => '<span class="project-card__no-image"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-3 5 3-1.5-8"/></svg></span>'],
         '#url' => $term->toUrl(),
       ],
     ],
@@ -567,7 +567,7 @@ function _interests_civi_bridge_item_card(NodeInterface $node): array {
       '#attributes' => ['class' => ['project-card__image', 'card-img-top']],
       'link' => [
         '#type' => 'link',
-        '#title' => $image ?: ['#markup' => '<span class="project-card__no-image">🛠️</span>'],
+        '#title' => $image ?: ['#markup' => '<span class="project-card__no-image"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L4 17l3 3 5.5-5.5a4 4 0 0 0 5.2-5.2L15 12l-3-3 2.7-2.7z"/></svg></span>'],
         '#url' => $node->toUrl(),
       ],
     ],

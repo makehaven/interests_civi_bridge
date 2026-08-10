@@ -339,9 +339,13 @@ details.mh-interest-picker-summary[open] {
   padding: 1.1rem 1.2rem;
 }
 .mh-next-step__icon {
-  font-size: 2rem;
+  /* Inline SVG icons (emoji render as tofu boxes on some member machines). */
+  color: var(--mh-color-brand-primary, #8b1919);
   line-height: 1;
   margin-bottom: 0.5rem;
+}
+.mh-next-step__icon svg {
+  display: block;
 }
 .mh-next-step h3 {
   font-size: 1.05rem;
