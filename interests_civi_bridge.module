@@ -4,6 +4,7 @@ use Drupal\Core\Url;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\node\NodeInterface;
 use Drupal\profile\Entity\ProfileInterface;
+use Drupal\views\Views;
 
 /**
  * Node id of the onboarding "thank you / getting started" page
@@ -193,8 +194,9 @@ function _interests_civi_bridge_guide(): array {
     ], $expanded);
 
     $badges = _interests_civi_bridge_badge_section($expanded);
+    $gems = _interests_civi_bridge_gems_section();
 
-    if (!$projects && !$tools && !$badges) {
+    if (!$projects && !$tools && !$badges && !$gems) {
       return [];
     }
     return [
@@ -209,6 +211,7 @@ function _interests_civi_bridge_guide(): array {
       'projects' => $projects ?: [],
       'tools' => $tools ?: [],
       'badges' => $badges ?: [],
+      'gems' => $gems ?: [],
     ];
   }
   catch (\Exception $e) {
@@ -350,6 +353,45 @@ function _interests_civi_bridge_rec_section(array $spec, array $interest_tids): 
         . '<p class="mh-interest-recs__intro">' . $spec['intro'] . '</p>',
     ],
     'cards' => ['#type' => 'container', '#attributes' => ['class' => ['mh-rec-grid']]] + $cards,
+  ];
+}
+
+/**
+ * "Join a GEMS cohort" — the optional guided-start program offer.
+ *
+ * GEMS is the program new members most often use to get started (staff
+ * meeting, 2026-08-11), but the thank-you guide never offered it. Reuses the
+ * gems_cohorts View that powers /gems; the .mh-gems-upcoming wrapper opts the
+ * rows into the theme's cohort styling (gems.css ships in global-styling, so
+ * it loads here too). Not interest-filtered — GEMS covers all the basics.
+ *
+ * Hidden entirely when no cohort is open: the "check back soon" empty state
+ * belongs on /gems, not in onboarding. Program details and pricing stay on
+ * /gems (linked) so this copy cannot go stale against the program page.
+ */
+function _interests_civi_bridge_gems_section(): array {
+  $view = Views::getView('gems_cohorts');
+  if (!$view || !$view->access('block_1')) {
+    return [];
+  }
+  $view->setDisplay('block_1');
+  $view->preExecute();
+  $view->execute();
+  if (empty($view->result)) {
+    return [];
+  }
+  return [
+    '#type' => 'container',
+    '#attributes' => ['class' => ['mh-interest-recs', 'mh-gems-invite']],
+    'heading' => [
+      '#markup' => '<h3 class="mh-interest-recs__heading">' . t('Prefer to learn with a group?') . '</h3>'
+        . '<p class="mh-interest-recs__intro">' . t('<strong>GEMS</strong> is our 10-week guided intro: a small cohort meets two evenings a week with a coach, earning tool badges across wood, textiles, digital, and metal while finishing real projects together. It is an optional add-on with its own program fee (sliding-scale pricing available) — and the most popular way new members get going. <a href=":url">Learn more about GEMS</a>', [':url' => '/gems']) . '</p>',
+    ],
+    'cohorts' => [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['mh-gems-upcoming']],
+      'view' => $view->render(),
+    ],
   ];
 }
 

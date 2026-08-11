@@ -365,6 +365,35 @@ details.mh-interest-picker-summary[open] {
   margin-bottom: 0.35rem;
 }
 
+/* --- GEMS cohort invite (2026-08-11) ------------------------------------- */
+/* Framed like the picker so it reads as a distinct offer (optional paid
+   add-on), not a fourth row of recommendation cards. Hidden entirely by the
+   module when no cohort is open. Row styling inside comes from the theme's
+   gems.css via the .mh-gems-upcoming wrapper. */
+.mh-gems-invite {
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: rgba(139, 25, 25, 0.03);
+  border: 1px solid #e7e2da;
+  border-radius: 12px;
+}
+.mh-gems-invite .mh-interest-recs__intro {
+  max-width: 62ch;
+}
+/* The View's Register button uses .btn-mh-red, which the theme only styles
+   under the .mh-page mockup wrapper (/gems has one, this page does not) —
+   restate the solid style here so Register does not degrade to a bare link. */
+.mh-gems-invite .btn-mh-red {
+  background: var(--mh-color-brand-primary, #8b1919);
+  border-color: var(--mh-color-brand-primary, #8b1919);
+  color: #fff;
+}
+.mh-gems-invite .btn-mh-red:hover,
+.mh-gems-invite .btn-mh-red:focus {
+  background: var(--mh-color-brand-primary-strong, #710a0a);
+  border-color: var(--mh-color-brand-primary-strong, #710a0a);
+  color: #fff;
+}
+
 /* One box per card: the wrapper owns the border — strip the inner Bootstrap
    .card frame, whose second outline and inset read as broken (JR,
    2026-08-10). */
