@@ -385,7 +385,7 @@ function _interests_civi_bridge_gems_section(): array {
     '#attributes' => ['class' => ['mh-interest-recs', 'mh-gems-invite']],
     'heading' => [
       '#markup' => '<h3 class="mh-interest-recs__heading">' . t('Prefer to learn with a group?') . '</h3>'
-        . '<p class="mh-interest-recs__intro">' . t('<strong>GEMS</strong> is our 10-week guided intro: a small cohort meets two evenings a week with a coach, earning tool badges across wood, textiles, digital, and metal while finishing real projects together. It is an optional add-on with its own program fee (sliding-scale pricing available) — and the most popular way new members get going. <a href=":url">Learn more about GEMS</a>', [':url' => '/gems']) . '</p>',
+        . '<p class="mh-interest-recs__intro">' . t('<strong>GEMS</strong> (Guided Exploration of Makerspace Skills) is our 10-week guided intro: a small cohort meets two evenings a week with a coach, earning tool badges across wood, textiles, digital, and metal while finishing real projects together. It is an optional add-on with its own program fee (sliding-scale pricing available) — and the most popular way new members get going. <a href=":url">Learn more about GEMS</a>', [':url' => '/gems']) . '</p>',
     ],
     'cohorts' => [
       '#type' => 'container',
