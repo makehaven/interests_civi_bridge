@@ -1,0 +1,5 @@
+.mh-interest-picker__referral-detail {
+  grid-column: 1 / -1;
+  max-width: 32rem;
+  margin-block-end: var(--mh-space-sm, 0.75rem);
+}

@@ -62,6 +62,9 @@ class InterestPickerForm extends FormBase {
     protected AccountProxyInterface $currentUser,
   ) {}
 
+  /**
+   * {@inheritdoc}
+   */
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('entity_type.manager'),
@@ -69,6 +72,9 @@ class InterestPickerForm extends FormBase {
     );
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function getFormId() {
     return 'interests_civi_bridge_interest_picker';
   }
@@ -92,6 +98,9 @@ class InterestPickerForm extends FormBase {
     return $profile;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function buildForm(array $form, FormStateInterface $form_state) {
     if (!$this->currentUser->isAuthenticated()) {
       return ['#markup' => $this->t('Log in to choose your areas of interest.')];
@@ -135,20 +144,23 @@ class InterestPickerForm extends FormBase {
       '#title_display' => 'invisible',
       '#options' => $options,
       '#default_value' => $default,
-      // The class the theme's interest-hierarchy.js keys off (it loads globally),
+      // The class used by the theme's global interest-hierarchy.js,
       // so the parent/child rollup + non-selectable top level apply here.
       '#prefix' => '<div class="field--name-field-member-areas-interest">',
       '#suffix' => '</div>',
     ];
 
     $this->buildDiscovery($form, $profile);
+    $form_state->set('referral_capture', isset($form['discovery']['referral_detail']) || isset($form['referral_detail']));
+    $form_state->set('referral_existing_member', $this->hasMemberDiscovery($profile));
+    $form['#attached']['library'][] = 'interests_civi_bridge/referral_capture';
 
     $form['actions'] = ['#type' => 'actions'];
     $form['actions']['submit'] = [
       '#type' => 'submit',
       // The button names what it saves, so it stays honest once the discovery
       // question is on the form too.
-      '#value' => isset($form['discovery']) ? $this->t('Save and continue') : $this->t('Save my interests'),
+      '#value' => isset($form['discovery']) || isset($form['referral_detail']) ? $this->t('Save and continue') : $this->t('Save my interests'),
       '#button_type' => 'primary',
     ];
     return $form;
@@ -166,9 +178,25 @@ class InterestPickerForm extends FormBase {
     if (!$profile || !$profile->hasField('field_member_discovery')) {
       return;
     }
-    // Already answered (including via an EPP-prepopulated campaign link) — do
-    // not ask twice.
+    // Preserve campaign attribution, but still allow a missing referral name.
     if (!$profile->get('field_member_discovery')->isEmpty()) {
+      if ($this->needsReferrer($profile)) {
+        if (!$this->hasMemberDiscovery($profile)) {
+          $form['referral_add'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('A MakeHaven member also referred me'),
+          ];
+        }
+        $form['referral_detail'] = $this->referralElement();
+        if (isset($form['referral_add'])) {
+          $condition = [':input[name="referral_add"]' => ['checked' => TRUE]];
+          $form['referral_detail']['name']['#states'] = ['visible' => $condition, 'required' => $condition];
+        }
+        else {
+          $form['referral_detail']['name']['#required'] = TRUE;
+          $form['referral_detail']['name']['#description'] = $this->t('You told us a member referred you. Add their full name so staff can review your referral.');
+        }
+      }
       return;
     }
     $options = $this->discoveryOptions($profile);
@@ -189,16 +217,14 @@ class InterestPickerForm extends FormBase {
     ];
     // Follow-ups for the two answers where the detail is the point: who to
     // thank for a referral, and which event earned the signup.
-    if ($profile->hasField('field_member_referring')) {
-      $form['discovery_referring'] = [
-        '#type' => 'textfield',
-        '#title' => $this->t('Who referred you?'),
-        '#description' => $this->t('Their full name, so we can thank them.'),
-        '#maxlength' => 255,
-        '#states' => ['visible' => [':input[name="discovery"]' => ['value' => 'member']]],
-        '#prefix' => '<div class="mh-interest-picker__discovery-detail">',
-        '#suffix' => '</div>',
-      ];
+    if ($this->needsReferrer($profile) && isset($options['member'])) {
+      // Radios assigns weights .001, .002, etc. Place the real form element
+      // directly after the member option, including without JavaScript.
+      $form['discovery']['referral_detail'] = $this->referralElement();
+      $form['discovery']['referral_detail']['#weight'] = 0.0015;
+      $condition = [':input[name="discovery"]' => ['value' => 'member']];
+      $form['discovery']['referral_detail']['#states'] = ['visible' => $condition];
+      $form['discovery']['referral_detail']['name']['#states'] = ['required' => $condition];
     }
     if ($profile->hasField('field_member_discovery_event_det')) {
       $form['discovery_event'] = [
@@ -209,6 +235,61 @@ class InterestPickerForm extends FormBase {
         '#prefix' => '<div class="mh-interest-picker__discovery-detail">',
         '#suffix' => '</div>',
       ];
+    }
+  }
+
+  /**
+   * Whether a member referral was recorded among the discovery answers.
+   */
+  protected function hasMemberDiscovery(?object $profile): bool {
+    return $profile && $profile->hasField('field_member_discovery')
+      && in_array('member', array_column($profile->get('field_member_discovery')->getValue(), 'value'), TRUE);
+  }
+
+  /**
+   * Never replace an existing referral answer through this capture form.
+   */
+  protected function needsReferrer(object $profile): bool {
+    return $profile->hasField('field_member_referring')
+      && trim((string) $profile->get('field_member_referring')->value) === '';
+  }
+
+  /**
+   * Builds the same name field for first-time and returning members.
+   */
+  protected function referralElement(): array {
+    return [
+      '#type' => 'container',
+      '#attributes' => ['class' => ['mh-interest-picker__referral-detail']],
+      'name' => [
+        '#type' => 'textfield',
+        '#parents' => ['discovery_referring'],
+        '#title' => $this->t('Who referred you?'),
+        '#description' => $this->t('Enter their full name so staff can review your referral.'),
+        '#maxlength' => 255,
+      ],
+    ];
+  }
+
+  /**
+   * Determines whether this submission claims a referral with a missing name.
+   */
+  protected function referralSelected(FormStateInterface $form_state): bool {
+    return $form_state->get('referral_capture') && (
+      $form_state->get('referral_existing_member')
+      || $form_state->getValue('discovery') === 'member'
+      || $form_state->getValue('referral_add')
+    );
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function validateForm(array &$form, FormStateInterface $form_state): void {
+    // #states is browser-only; enforce the same rule for non-JS submissions
+    // and whitespace answers before either interests or discovery are saved.
+    if ($this->referralSelected($form_state) && trim((string) $form_state->getValue('discovery_referring')) === '') {
+      $form_state->setErrorByName('discovery_referring', $this->t('Please enter the full name of the member who referred you.'));
     }
   }
 
@@ -251,6 +332,9 @@ class InterestPickerForm extends FormBase {
     return $options;
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     $profile = $this->memberProfile();
     if (!$profile) {
@@ -263,14 +347,8 @@ class InterestPickerForm extends FormBase {
     // Discovery is only rendered when the field was empty, so a value here is
     // always a first answer — we never overwrite an existing one.
     $discovery = $form_state->getValue('discovery');
-    if ($discovery && $profile->hasField('field_member_discovery')) {
+    if ($discovery && $profile->hasField('field_member_discovery') && $profile->get('field_member_discovery')->isEmpty()) {
       $profile->set('field_member_discovery', [$discovery]);
-      if ($discovery === 'member' && $profile->hasField('field_member_referring')) {
-        $referring = trim((string) $form_state->getValue('discovery_referring'));
-        if ($referring !== '') {
-          $profile->set('field_member_referring', $referring);
-        }
-      }
       if ($discovery === 'event' && $profile->hasField('field_member_discovery_event_det')) {
         $event = trim((string) $form_state->getValue('discovery_event'));
         if ($event !== '') {
@@ -279,7 +357,18 @@ class InterestPickerForm extends FormBase {
       }
     }
 
+    $referral_saved = FALSE;
+    if ($this->referralSelected($form_state) && $this->needsReferrer($profile)) {
+      $referring = trim((string) $form_state->getValue('discovery_referring'));
+      if ($referring !== '') {
+        $profile->set('field_member_referring', $referring);
+        $referral_saved = TRUE;
+      }
+    }
     $profile->save();
+    if ($referral_saved) {
+      $this->messenger()->addStatus($this->t('Thanks! Your referral has been saved for staff review. This does not yet confirm a membership credit.'));
+    }
 
     if ($selected) {
       $this->messenger()->addStatus($this->t('Thanks! Your interests are saved — we will use them to tailor your Slack channels and weekly email.'));

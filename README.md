@@ -32,15 +32,25 @@ visits unprompted (staff feedback, 2026-08-04).
 
 Notes for maintainers:
 
-- The question is asked **only when the field is empty**, so campaign links that
-  prepopulate it through the EPP `?discovery=` token are not re-asked.
+- Discovery is asked **only when empty**, preserving campaign attribution.
+  A member-discovery answer with no referrer reopens the name question, even
+  when saved interests would otherwise collapse the picker. Other existing
+  discovery answers can add a referral with “A MakeHaven member also referred
+  me”; this does not replace or append to the discovery answers.
 - Stored *values* match the field's own allowed values, so
   `views.view.discovery_report` and all historical records keep working. Only
   the member-facing wording differs (see `discoveryLabels()`); any option on the
   field that is missing from that map still renders, using its field label.
-- The question is optional on purpose. Interests are this page's primary job,
-  and a required question risks losing both answers to an abandoned form. If
-  capture is low, making it required is a one-line change.
+- Discovery is optional, but claiming a member referral requires a nonblank
+  name, enforced on the server as well as in the browser. The name field sits
+  immediately after the member option, including without JavaScript. On
+  selection it receives focus and scrolls into view. Existing names are never
+  overwritten by this picker. A save acknowledges staff review, not payment.
+
+Local browser regression: from the site's `playwright-tests` directory run
+`npx playwright test tests/referral-capture.spec.ts --project=chromium`.
+It creates and removes a disposable local member and checks mobile capture,
+server validation, missing-name recovery and campaign attribution preservation.
 
 ## Configuration
 

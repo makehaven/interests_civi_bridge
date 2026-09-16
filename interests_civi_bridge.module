@@ -50,6 +50,8 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
   $build['#cache']['contexts'][] = 'url.query_args:browse';
 
   $interests = _interests_civi_bridge_member_interests();
+  $picker = \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm');
+  $missing_referrer = !empty($picker['referral_detail']['name']['#required']);
 
   if (!$interests && !_interests_civi_bridge_is_browsing()) {
     // Stage 1 — just the question. The body is suppressed in
@@ -63,7 +65,7 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
       'heading' => [
         '#markup' => '<h2 class="mh-interest-picker-heading">' . t('First things first — what do you want to make?') . '</h2>',
       ],
-      'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
+      'form' => $picker,
       'skip' => [
         '#type' => 'link',
         '#title' => t('Prefer to just look around? Skip this for now'),
@@ -78,14 +80,17 @@ function interests_civi_bridge_node_view(array &$build, NodeInterface $node, $di
   $summary = $interests
     ? t('Your interests: @list — click to change', ['@list' => implode(', ', $interests)])
     : t('Pick your interests to personalize this guide');
+  if ($missing_referrer) {
+    $summary = t('Who referred you? Add their name to complete your referral.');
+  }
   $build['interests_picker'] = [
     '#type' => 'details',
     '#title' => $summary,
-    '#open' => !$interests,
+    '#open' => !$interests || $missing_referrer,
     '#weight' => -50,
     '#attributes' => ['class' => ['mh-interest-picker-summary']],
     '#attached' => ['library' => ['interests_civi_bridge/interest_picker']],
-    'form' => \Drupal::formBuilder()->getForm('Drupal\interests_civi_bridge\Form\InterestPickerForm'),
+    'form' => $picker,
   ];
 
   $guide = _interests_civi_bridge_guide();

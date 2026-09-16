@@ -6,3 +6,14 @@ interest_picker:
     js/rec-cards.js: {}
   dependencies:
     - core/drupal
+
+referral_capture:
+  css:
+    theme:
+      css/referral-capture.css: {}
+  js:
+    js/referral-capture.js: {}
+  dependencies:
+    - core/drupal
+    - core/once
+    - core/drupal.states
