@@ -218,10 +218,15 @@ class InterestPickerForm extends FormBase {
     // Follow-ups for the two answers where the detail is the point: who to
     // thank for a referral, and which event earned the signup.
     if ($this->needsReferrer($profile) && isset($options['member'])) {
-      // Radios assigns weights .001, .002, etc. Place the real form element
-      // directly after the member option, including without JavaScript.
+      // Put the name field directly after the member option, with or without
+      // JavaScript. It cannot be done with a fractional weight: Radios assigns
+      // its children .001, .002 and so on, and Element::children() sorts on
+      // floor($weight * 1000), so .0015 and .001 land in the same bucket and
+      // fall back to insertion order — which puts the field above every option,
+      // measured 2026-09-16. Renumber the built children in whole steps instead
+      // (see orderDiscoveryChildren), which survives that truncation.
       $form['discovery']['referral_detail'] = $this->referralElement();
-      $form['discovery']['referral_detail']['#weight'] = 0.0015;
+      $form['discovery']['#after_build'][] = [static::class, 'orderDiscoveryChildren'];
       $condition = [':input[name="discovery"]' => ['value' => 'member']];
       $form['discovery']['referral_detail']['#states'] = ['visible' => $condition];
       $form['discovery']['referral_detail']['name']['#states'] = ['required' => $condition];
@@ -252,6 +257,32 @@ class InterestPickerForm extends FormBase {
   protected function needsReferrer(object $profile): bool {
     return $profile->hasField('field_member_referring')
       && trim((string) $profile->get('field_member_referring')->value) === '';
+  }
+
+  /**
+   * Re-weights the built radios so the referral name follows its own option.
+   *
+   * Runs after Radios::processRadios has created the option children, in whole
+   * weight steps because Element::children() truncates to three decimals. It
+   * also drops #sorted, which FormBuilder sets before the children exist, so
+   * the render layer sorts the final order rather than the insertion order.
+   */
+  public static function orderDiscoveryChildren(array $element, FormStateInterface $form_state): array {
+    if (!isset($element['referral_detail'])) {
+      return $element;
+    }
+    $weight = 0;
+    foreach (array_keys($element['#options'] ?? []) as $key) {
+      if (!isset($element[$key])) {
+        continue;
+      }
+      $element[$key]['#weight'] = ++$weight;
+      if ($key === 'member') {
+        $element['referral_detail']['#weight'] = ++$weight;
+      }
+    }
+    unset($element['#sorted']);
+    return $element;
   }
 
   /**
