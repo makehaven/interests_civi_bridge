@@ -289,15 +289,57 @@ class InterestPickerForm extends FormBase {
    * Builds the same name field for first-time and returning members.
    */
   protected function referralElement(): array {
+    // A picker rather than a box to type a name into. Typing was measured and
+    // it does not work: of 544 stored answers, 23% arrived in a shape the
+    // matcher could not suggest anything for — single words like "Michael" and
+    // "regina", and "Lior!" — so somebody had to research each one, and 544
+    // answers produced two decisions. Pointing at a face resolves it at the
+    // moment the person actually knows the answer. 841 of 853 active members
+    // have a photo.
     return [
       '#type' => 'container',
-      '#attributes' => ['class' => ['mh-interest-picker__referral-detail']],
+      '#attributes' => [
+        'class' => ['mh-interest-picker__referral-detail', 'mh-referral-picker'],
+        'data-mh-referral-picker' => 'true',
+      ],
+      '#attached' => ['library' => ['makerspace_referrals/member_picker']],
+      'uid' => [
+        '#type' => 'hidden',
+        '#parents' => ['discovery_referrer_uid'],
+        '#default_value' => '',
+        '#attributes' => ['data-mh-referral-uid' => 'true'],
+      ],
       'name' => [
         '#type' => 'textfield',
         '#parents' => ['discovery_referring'],
         '#title' => $this->t('Who referred you?'),
-        '#description' => $this->t('Enter their full name so staff can review your referral.'),
+        '#description' => $this->t('Start typing their name and pick them from the list.'),
         '#maxlength' => 255,
+        '#attributes' => [
+          'data-mh-referral-search' => 'true',
+          'autocomplete' => 'off',
+        ],
+      ],
+      'results' => [
+        '#type' => 'container',
+        '#attributes' => [
+          'class' => ['mh-referral-picker__results'],
+          'data-mh-referral-results' => 'true',
+        ],
+      ],
+      'chosen' => [
+        '#type' => 'container',
+        '#attributes' => [
+          'class' => ['mh-referral-picker__chosen'],
+          'data-mh-referral-chosen' => 'true',
+        ],
+      ],
+      // Without JavaScript the box is still a box, and the typed name still
+      // goes to the queue exactly as it does today. Nobody is blocked.
+      'fallback' => [
+        '#markup' => '<p class="mh-referral-picker__fallback description">'
+        . $this->t("Can't find them? Type their name anyway and staff will work it out.")
+        . '</p>',
       ],
     ];
   }
@@ -389,15 +431,61 @@ class InterestPickerForm extends FormBase {
     }
 
     $referral_saved = FALSE;
+    $referrer_uid = 0;
     if ($this->referralSelected($form_state) && $this->needsReferrer($profile)) {
       $referring = trim((string) $form_state->getValue('discovery_referring'));
       if ($referring !== '') {
+        // The typed text is kept whatever happens. It is the person's own
+        // answer and the provenance for anything resolved from it.
         $profile->set('field_member_referring', $referring);
         $referral_saved = TRUE;
+
+        // What the browser posted is a claim, not evidence — re-check that the
+        // uid really is an active member and is not the person themselves.
+        $claimed = (int) $form_state->getValue('discovery_referrer_uid');
+        if ($claimed > 0 && \Drupal::hasService('makerspace_referrals.member_finder')) {
+          $finder = \Drupal::service('makerspace_referrals.member_finder');
+          if ($finder->isSelectableMember($claimed, (int) $profile->getOwnerId())) {
+            $referrer_uid = $claimed;
+          }
+        }
       }
     }
     $profile->save();
-    if ($referral_saved) {
+
+    if ($referrer_uid > 0) {
+      // Picking somebody from the list IS the resolution (JR, 2026-09-17).
+      // Recorded as a review decision rather than written straight to the
+      // projection, so there is one audit trail and it says how this was
+      // resolved: reviewer 0 means the member selected it themselves.
+      try {
+        $review = \Drupal::service('makerspace_referrals.review');
+        $review->decide(
+          (int) $profile->id(),
+          hash('sha256', $review->source($profile)),
+          0,
+          'confirmed',
+          $referrer_uid,
+          0,
+        );
+        \Drupal::service('makerspace_referrals.projector')->project((int) $profile->id());
+      }
+      catch (\Throwable $e) {
+        // A failure here must not cost the member their submission. The typed
+        // name is already saved, so the referral simply falls back to the
+        // staff queue exactly as it would have before.
+        \Drupal::logger('interests_civi_bridge')->error('Could not auto-confirm a self-picked referrer for profile @p: @m', [
+          '@p' => $profile->id(),
+          '@m' => $e->getMessage(),
+        ]);
+        $referrer_uid = 0;
+      }
+    }
+
+    if ($referrer_uid > 0) {
+      $this->messenger()->addStatus($this->t('Thanks! We have recorded who introduced you, and they will hear from us.'));
+    }
+    elseif ($referral_saved) {
       $this->messenger()->addStatus($this->t('Thanks! Your referral has been saved for staff review. This does not yet confirm a membership credit.'));
     }
 

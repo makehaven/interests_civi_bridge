@@ -7,4 +7,7 @@ dependencies:
   - drupal:civicrm
   - drupal:profile
   - drupal:taxonomy
+  # The referral picker and its search endpoint live there; this form is where
+  # the question is asked.
+  - makerspace_referrals:makerspace_referrals
 configure: interests_civi_bridge.settings
