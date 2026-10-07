@@ -195,7 +195,7 @@ function _interests_civi_bridge_guide(): array {
       'status_tids' => INTERESTS_CIVI_BRIDGE_ITEM_STATUS_TIDS,
       'matched_heading' => t('Tools for your interests'),
       'fallback_heading' => t('Popular tools to explore'),
-      'intro' => t('Star your favorites — most tools unlock with a short badge quiz.'),
+      'intro' => t('Star your favorites. Most tools need a badge: a video and quiz, and for many tools a checkout with a facilitator.'),
     ], $expanded);
 
     $badges = _interests_civi_bridge_badge_section($expanded);
