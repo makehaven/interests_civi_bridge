@@ -231,15 +231,23 @@ class InterestPickerForm extends FormBase {
       $form['discovery']['referral_detail']['#states'] = ['visible' => $condition];
       $form['discovery']['referral_detail']['name']['#states'] = ['required' => $condition];
     }
-    if ($profile->hasField('field_member_discovery_event_det')) {
-      $form['discovery_event'] = [
+    if ($profile->hasField('field_member_discovery_event_det') && isset($options['event'])) {
+      // Directly under the event option, like the referral name: below the
+      // whole list it opened off screen on phones and was missed (Kate,
+      // 2026-08). #parents keeps the value at the top level, where submit
+      // reads it.
+      $form['discovery']['discovery_event'] = [
         '#type' => 'textfield',
         '#title' => $this->t('Which workshop or event?'),
         '#maxlength' => 255,
+        '#parents' => ['discovery_event'],
         '#states' => ['visible' => [':input[name="discovery"]' => ['value' => 'event']]],
         '#prefix' => '<div class="mh-interest-picker__discovery-detail">',
         '#suffix' => '</div>',
       ];
+      if (!in_array([static::class, 'orderDiscoveryChildren'], $form['discovery']['#after_build'] ?? [], TRUE)) {
+        $form['discovery']['#after_build'][] = [static::class, 'orderDiscoveryChildren'];
+      }
     }
   }
 
@@ -260,7 +268,9 @@ class InterestPickerForm extends FormBase {
   }
 
   /**
-   * Re-weights the built radios so the referral name follows its own option.
+   * Re-weights the built radios so each follow-up sits under its option.
+   *
+   * The referral name follows "member" and the event name follows "event".
    *
    * Runs after Radios::processRadios has created the option children, in whole
    * weight steps because Element::children() truncates to three decimals. It
@@ -268,7 +278,11 @@ class InterestPickerForm extends FormBase {
    * the render layer sorts the final order rather than the insertion order.
    */
   public static function orderDiscoveryChildren(array $element, FormStateInterface $form_state): array {
-    if (!isset($element['referral_detail'])) {
+    $follow_ups = array_filter([
+      'member' => isset($element['referral_detail']) ? 'referral_detail' : NULL,
+      'event' => isset($element['discovery_event']) ? 'discovery_event' : NULL,
+    ]);
+    if (!$follow_ups) {
       return $element;
     }
     $weight = 0;
@@ -277,8 +291,8 @@ class InterestPickerForm extends FormBase {
         continue;
       }
       $element[$key]['#weight'] = ++$weight;
-      if ($key === 'member') {
-        $element['referral_detail']['#weight'] = ++$weight;
+      if (isset($follow_ups[$key])) {
+        $element[$follow_ups[$key]]['#weight'] = ++$weight;
       }
     }
     unset($element['#sorted']);
