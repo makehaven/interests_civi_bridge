@@ -1,0 +1,42 @@
+/* Area of Interest on CiviCRM forms, grouped by category
+   (js/civicrm-interest-groups.js). Headings match the theme's interest
+   hierarchy headers on Drupal forms. */
+.crm-container .mh-civi-interest-groups,
+.mh-civi-interest-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1.25rem 2rem;
+}
+
+.mh-civi-interest-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.mh-civi-interest-group__title {
+  float: none;
+  width: 100%;
+  margin: 0 0 0.4rem;
+  padding: 0 0 0.3rem;
+  border-bottom: 1px solid var(--mh-color-border, #e7e2da);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mh-color-text-muted, #6f675f);
+}
+
+.mh-civi-interest-group__options .crm-option-label-pair {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0 0 0.3rem;
+  width: auto;
+}
+
+.mh-civi-interest-group__options .crm-option-label-pair input[type="checkbox"] {
+  margin-top: 0.3rem;
+  flex: none;
+}

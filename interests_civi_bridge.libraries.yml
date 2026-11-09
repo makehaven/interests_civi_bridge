@@ -17,3 +17,14 @@ referral_capture:
     - core/drupal
     - core/once
     - core/drupal.states
+
+civicrm_interest_groups:
+  css:
+    theme:
+      css/civicrm-interest-groups.css: {}
+  js:
+    js/civicrm-interest-groups.js: {}
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
+    - core/once

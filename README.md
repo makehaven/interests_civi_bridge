@@ -78,3 +78,13 @@ drush interests:push-interests
 Use `--limit` or `--chunk` options if you need to throttle the run. The command
 respects the configured profile bundle/field and reuses the same mapping logic
 as real-time syncs.
+
+## Grouped interests on CiviCRM forms
+
+CiviCRM's interest field (`civicrm_custom_field`, e.g. `custom_75`) holds only
+the child interests, so CiviCRM renders them as one flat grid. On any
+`civicrm.*` route, `hook_page_attachments()` passes the category → interest map
+from the `area_of_interest` taxonomy, and `js/civicrm-interest-groups.js` moves
+each existing option row under its category heading (newsletter signup profile
+gid=36, event registration, etc.). Matching is by label; an option the taxonomy
+doesn't know goes under "Other". Nothing in CiviCRM changes.

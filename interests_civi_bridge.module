@@ -668,3 +668,72 @@ function interests_civi_bridge_civicrm_post($op, $objectName, $objectId, &$objec
   }
   \Drupal::service('interests_civi_bridge.sync_manager')->handleCivicrmPost((int) $objectId);
 }
+
+/**
+ * Implements hook_page_attachments().
+ *
+ * Groups the Area of Interest checkboxes on CiviCRM forms (profiles such as
+ * the newsletter signup, event registration) under the same six category
+ * headings members see on Drupal forms. CiviCRM's custom field only carries
+ * the child interests — parents are derived, by design — so it renders them as
+ * one flat list. The category map comes from the area_of_interest taxonomy, so
+ * a renamed or moved term regroups itself; nothing in CiviCRM changes.
+ */
+function interests_civi_bridge_page_attachments(array &$attachments): void {
+  $route = (string) \Drupal::routeMatch()->getRouteName();
+  if (!str_starts_with($route, 'civicrm.')) {
+    return;
+  }
+
+  $field = (string) \Drupal::config('interests_civi_bridge.settings')->get('civicrm_custom_field');
+  if (!preg_match('/^custom_\d+$/', $field)) {
+    return;
+  }
+
+  $attachments['#cache']['tags'][] = 'taxonomy_term_list:area_of_interest';
+  $attachments['#cache']['tags'][] = 'config:interests_civi_bridge.settings';
+
+  $groups = _interests_civi_bridge_interest_groups();
+  if (!$groups) {
+    return;
+  }
+
+  $attachments['#attached']['library'][] = 'interests_civi_bridge/civicrm_interest_groups';
+  $attachments['#attached']['drupalSettings']['interestsCiviBridge']['civiGroups'] = [
+    'field' => $field,
+    'groups' => $groups,
+  ];
+}
+
+/**
+ * Returns the interest categories in taxonomy order with their child labels.
+ *
+ * @return array<int, array{label: string, children: string[]}>
+ */
+function _interests_civi_bridge_interest_groups(): array {
+  $tree = \Drupal::entityTypeManager()
+    ->getStorage('taxonomy_term')
+    ->loadTree('area_of_interest', 0, 2);
+
+  $groups = [];
+  $index = [];
+  foreach ($tree as $term) {
+    if ((int) $term->depth === 0) {
+      $index[(int) $term->tid] = count($groups);
+      $groups[] = ['label' => $term->name, 'children' => []];
+    }
+  }
+  foreach ($tree as $term) {
+    if ((int) $term->depth !== 1) {
+      continue;
+    }
+    foreach ($term->parents as $parent) {
+      if (isset($index[(int) $parent])) {
+        $groups[$index[(int) $parent]]['children'][] = $term->name;
+        break;
+      }
+    }
+  }
+
+  return array_values(array_filter($groups, static fn (array $g): bool => $g['children'] !== []));
+}
